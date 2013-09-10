@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"time"
 )
 
 var Empty = errors.New("Cache empty, ensure you've successfully called Populate at least once.")
@@ -12,13 +13,19 @@ var Empty = errors.New("Cache empty, ensure you've successfully called Populate 
 type ExchangeRates struct {
 	Base      string
 	rates     map[string]float64
-	Timestamp string
+	Timestamp time.Time
 	url       string
 }
 
 // Create a new exchange rates cache
 func New(appid string) *ExchangeRates {
 	return &ExchangeRates{url: "http://openexchangerates.org/latest.json?app_id=" + appid}
+}
+
+type deserialised struct {
+	Base      string
+	Rates     map[string]float64
+	Timestamp int64
 }
 
 // Populate the rates from Open Exchange Rates
@@ -34,7 +41,16 @@ func (r *ExchangeRates) Populate() error {
 	}
 	defer res.Body.Close()
 
-	return json.Unmarshal(body, &r)
+	var d deserialised
+	if err := json.Unmarshal(body, &d); err != nil {
+		return err
+	}
+
+	r.Base = d.Base
+	r.Timestamp = time.Unix(d.Timestamp, 0)
+	r.rates = d.Rates
+
+	return nil
 }
 
 // Get all the exchange rates
@@ -59,4 +75,3 @@ func (r *ExchangeRates) Get(currency string) (float64, error) {
 
 	return r.rates[currency], nil
 }
-
